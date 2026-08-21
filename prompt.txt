@@ -1,0 +1,29 @@
+I am stuck on a level on Water Sort, and it won't let me watch an ad to buy another bottle. I need your help to get past it.
+
+A Layer is a single color, represented by a string, and a depth, which can be any natural number.
+
+A Bottle has a capacity, any natural number, and 0 or more Layers whose combined depth does not exceed its capacity. A Bottle is empty if it has no Layers. A Bottle is completed if it has a single Layer with a depth equal to the Bottle's capacity.
+
+A Puzzle has a certain number of Bottles. The input to the Puzzle is a json object representing the number of the Bottle and an object representing its capacity and its layers from bottom to top, for example:
+
+{
+	"a": { "capacity": 4, "layers": [ { "depth": 2, "color": "blue" }, { "depth": 2, "color": "white" } ] },
+	"b": { "capacity": 4, "layers": [ { "depth": 2, "color": "white" } ] },
+	"c": { "capacity": 4, "layers": [ { "depth": 2, "color": "blue" } ] }
+}
+
+A Pour is represented as a tuple of the source Bottle's number and the destination Bottle's number, e.g. ("a","b"). A Pour is valid if all of the following are true:
+
+* The source Bottle is not empty.
+* The source Bottle is not completed.
+* The destination Bottle is empty or the top Layers of the source and destination Bottles have the same color.
+* The destination Bottle has enough capacity to accept the top Layer of the source Bottle.
+* If the destination Bottle is not empty, the top Layers of the source and destination Bottles have the same color.
+
+A Pour pops the top Layers of the source and destination Bottles, combines them into a single Layer of the same color and combined depth, and pushes it onto the destination Bottle.
+
+The Puzzle is solved when all Bottles are either empty or have a single Layer. A solution to the input given above is [("a","b"), ("c","a")].
+
+Implement a recursive solution that accepts input as given. At each round calculate all possible Pours and explore each one to see if it leads to a solution. The inner recursion step should return true if it is a solution, false if there are no valid Pours, and go deeper in all other cases. Use functional techniques to make a copy of the Puzzle and each Bottle at each step rather than mutating them. Do it in Python.
+
+Ask any clarifying questions you may have.
