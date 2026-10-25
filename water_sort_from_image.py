@@ -8,7 +8,7 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, BinaryIO
 
 from water_sort_solver import solve_puzzle, solve_puzzle_recursive
 
@@ -239,13 +239,14 @@ def compress_layers(slots_bottom_to_top: Sequence[str | None]) -> list[dict[str,
 
 
 def parse_screenshot(
-    image_path: Path,
+    image_source: Path | BinaryIO,
     *,
     capacity: int = 4,
     color_threshold: float = 55.0,
 ) -> tuple[dict[str, Any], list[BottleBox], dict[str, str]]:
     Image, _, _ = import_pillow()
-    image = Image.open(image_path).convert("RGB")
+    with Image.open(image_source) as source:
+        image = source.convert("RGB")
     boxes = detect_bottle_boxes(image)
     clusters: list[tuple[str, Color, int]] = []
     puzzle: dict[str, Any] = {}
@@ -261,21 +262,26 @@ def parse_screenshot(
     return puzzle, boxes, swatches
 
 
-def save_annotated_image(image_path: Path, boxes: Sequence[BottleBox], output_path: Path) -> None:
+def annotate_image(image_source: Path | BinaryIO, boxes: Sequence[BottleBox]) -> Any:
     Image, ImageDraw, ImageFont = import_pillow()
-    image = Image.open(image_path).convert("RGB")
+    with Image.open(image_source) as source:
+        image = source.convert("RGB")
     draw = ImageDraw.Draw(image)
 
-    try:
-        font = ImageFont.truetype("Arial.ttf", 44)
-    except OSError:
+    for font_name in ("DejaVuSans.ttf", "Arial.ttf"):
+        try:
+            font = ImageFont.truetype(font_name, 44)
+            break
+        except OSError:
+            continue
+    else:
         font = ImageFont.load_default()
 
     for index, box in enumerate(boxes, start=1):
         label = str(index)
         draw.rectangle((box.left, box.top, box.right, box.bottom), outline=(255, 255, 255), width=4)
         draw.text(
-            (box.center_x, max(0, box.top - 52)),
+            (box.center_x, box.top + 30),
             label,
             fill=(255, 255, 255),
             anchor="mm",
@@ -284,7 +290,11 @@ def save_annotated_image(image_path: Path, boxes: Sequence[BottleBox], output_pa
             stroke_fill=(0, 0, 0),
         )
 
-    image.save(output_path)
+    return image
+
+
+def save_annotated_image(image_path: Path, boxes: Sequence[BottleBox], output_path: Path) -> None:
+    annotate_image(image_path, boxes).save(output_path)
 
 
 def main() -> int:

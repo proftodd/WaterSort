@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from io import BytesIO
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from water_sort_solver import solve_puzzle, solve_puzzle_recursive
+from water_sort_from_image import annotate_image, parse_screenshot
 
 
 JsonObject = dict[str, Any]
+MAX_BODY_BYTES = 20 * 1024 * 1024
 
 
 def solve_request(puzzle: JsonObject, strategy: str = "bfs") -> JsonObject:
@@ -28,6 +32,39 @@ def solve_request(puzzle: JsonObject, strategy: str = "bfs") -> JsonObject:
     }
 
 
+def solve_image_request(image_bytes: bytes, strategy: str = "bfs") -> JsonObject:
+    from PIL import UnidentifiedImageError
+
+    try:
+        puzzle, boxes, swatches = parse_screenshot(BytesIO(image_bytes))
+        annotated = BytesIO()
+        annotate_image(BytesIO(image_bytes), boxes).save(annotated, format="PNG")
+    except (UnidentifiedImageError, OSError) as error:
+        raise ValueError("Request body must contain a valid image.") from error
+
+    return {
+        **solve_request(puzzle, strategy),
+        "puzzle": puzzle,
+        "swatches": swatches,
+        "bottles": [
+            {
+                "id": str(index),
+                "bounds": {
+                    "left": box.left,
+                    "top": box.top,
+                    "right": box.right,
+                    "bottom": box.bottom,
+                },
+            }
+            for index, box in enumerate(boxes, start=1)
+        ],
+        "annotated_image": {
+            "media_type": "image/png",
+            "data_base64": base64.b64encode(annotated.getvalue()).decode("ascii"),
+        },
+    }
+
+
 class WaterSortRequestHandler(BaseHTTPRequestHandler):
     server_version = "WaterSortHTTP/1.0"
 
@@ -40,7 +77,7 @@ class WaterSortRequestHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed_url = urlparse(self.path)
-        if parsed_url.path != "/solve":
+        if parsed_url.path not in ("/solve", "/solve-image"):
             self.write_json(HTTPStatus.NOT_FOUND, {"error": "Not found."})
             return
 
@@ -48,8 +85,18 @@ class WaterSortRequestHandler(BaseHTTPRequestHandler):
         strategy = query.get("strategy", ["bfs"])[0]
 
         try:
-            puzzle = self.read_json_body()
-            response = solve_request(puzzle, strategy)
+            if parsed_url.path == "/solve-image":
+                content_type = self.headers.get_content_type()
+                if not content_type.startswith("image/"):
+                    self.write_json(
+                        HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+                        {"error": "Send image bytes with an image/* Content-Type."},
+                    )
+                    return
+                response = solve_image_request(self.read_body(), strategy)
+            else:
+                puzzle = self.read_json_body()
+                response = solve_request(puzzle, strategy)
         except json.JSONDecodeError as error:
             self.write_json(HTTPStatus.BAD_REQUEST, {"error": f"Invalid JSON: {error}"})
             return
@@ -66,14 +113,21 @@ class WaterSortRequestHandler(BaseHTTPRequestHandler):
         status = HTTPStatus.OK if response["solution"] is not None else HTTPStatus.NOT_FOUND
         self.write_json(status, response)
 
-    def read_json_body(self) -> JsonObject:
+    def read_body(self) -> bytes:
         raw_length = self.headers.get("Content-Length")
         if raw_length is None:
             raise ValueError("Content-Length header is required.")
 
         length = int(raw_length)
+        if not 0 < length <= MAX_BODY_BYTES:
+            raise ValueError("Request body must be between 1 byte and 20 MiB.")
         body = self.rfile.read(length)
-        payload = json.loads(body)
+        if len(body) != length:
+            raise ValueError("Incomplete request body.")
+        return body
+
+    def read_json_body(self) -> JsonObject:
+        payload = json.loads(self.read_body())
         if not isinstance(payload, dict):
             raise ValueError("Request body must be a JSON object.")
 
