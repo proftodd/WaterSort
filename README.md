@@ -74,3 +74,11 @@ spaced liquid units. The annotations identify detected bottles; they do not
 make recognition of arbitrary shapes or mixed capacities reliable. Such
 layouts need additional detection and capacity inference before they are
 supported.
+
+## Azure Functions
+
+The project also includes an Azure Functions entry point with
+`/api/health`, `/api/solve`, and `/api/solve-image` routes. It reuses the
+same solver and returns the same annotated-image JSON response.
+See [AZURE.md](AZURE.md) for local testing, Flex Consumption deployment,
+and calling the deployed app from Bruno with a function key.

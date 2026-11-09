@@ -226,3 +226,6 @@ __marimo__/
 # Project-specific directories
 input
 output
+.venv-azure/
+.python_packages/
+local.settings.json

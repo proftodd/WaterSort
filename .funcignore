@@ -1,0 +1,8 @@
+# Deploy only the runtime files, not screenshots, responses, secrets, or venvs.
+*
+!function_app.py
+!host.json
+!requirements.txt
+!water_sort_server.py
+!water_sort_solver.py
+!water_sort_from_image.py

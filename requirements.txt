@@ -1,1 +1,2 @@
 Pillow>=10.0
+azure-functions>=1.21,<2
